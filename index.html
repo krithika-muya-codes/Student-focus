@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deadline Buddy</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5fc;color:#192341;font-family:Arial,sans-serif;padding:25px 15px}
+main{max-width:650px;margin:auto}
+header{background:#263fba;color:white;padding:28px;border-radius:20px;margin-bottom:18px}
+header p{opacity:.85}
+h1{margin:8px 0;font-size:32px}
+h2{font-size:20px}
+.panel{background:white;border-radius:17px;padding:20px;margin:15px 0;box-shadow:0 5px 20px #18265b0d}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:white;padding:15px 10px;border-radius:14px;text-align:center}
+.stat strong{display:block;font-size:25px;margin-top:8px}
+label{display:block;font-size:14px;margin:12px 0 6px}
+input,select{width:100%;padding:12px;border:1px solid #dce1ef;border-radius:9px;background:white;font:inherit}
+button{cursor:pointer;border:0;border-radius:9px;padding:12px;font-weight:bold}
+.add{background:#304dc9;color:white;width:100%;margin-top:14px}
+.task{border:1px solid #e2e6f0;border-radius:12px;padding:13px;margin-top:10px;display:flex;gap:10px;align-items:center}
+.task input{width:18px}
+.details{flex:1;overflow-wrap:anywhere}
+.details small{display:block;color:#69738c;margin-top:6px}
+.done{text-decoration:line-through;color:#8b93a5}
+.delete{background:#fff0f0;color:#b33c4b}
+footer{text-align:center;color:#788198;font-size:12px;padding:20px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p>YOUR STUDENT LIFE, ORGANISED ✨</p>
+<h1>Deadline Buddy</h1>
+<p>Less panic. More progress.</p>
+</header>
+
+<section class="stats">
+<div class="stat">Total tasks<strong id="total">0</strong></div>
+<div class="stat">Completed<strong id="completed">0</strong></div>
+<div class="stat">Due soon<strong id="soon">0</strong></div>
+</section>
+
+<section class="panel">
+<h2>Add a task 📚</h2>
+<form id="form">
+<label for="title">Task name</label>
+<input id="title" placeholder="e.g. Finish C lab record" required maxlength="100">
+<label for="category">Category</label>
+<select id="category">
+<option>Assignment</option>
+<option>Lab work</option>
+<option>Exam</option>
+<option>Project</option>
+<option>Personal</option>
+</select>
+<label for="date">Deadline</label>
+<input id="date" type="date" required>
+<button class="add">+ Add task</button>
+</form>
+</section>
+
+<section class="panel">
+<h2>My tasks</h2>
+<label for="filter">Filter tasks</label>
+<select id="filter">
+<option value="all">All tasks</option>
+<option value="active">Not completed</option>
+<option value="done">Completed</option>
+</select>
+<div id="tasks"></div>
+</section>
+<footer>Built with HTML, CSS and JavaScript · Deadline Buddy</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const today = () => {
+  const d = new Date();
+  return d.getFullYear() + "-" +
+    String(d.getMonth()+1).padStart(2,"0") + "-" +
+    String(d.getDate()).padStart(2,"0");
+};
+
+$("date").value = today();
+$("date").min = today();
+
+let tasks = [];
+try {
+  tasks = JSON.parse(localStorage.getItem("deadlineBuddy") || "[]");
+  if (!Array.isArray(tasks)) tasks = [];
+} catch { tasks = []; }
+
+function save() {
+  localStorage.setItem("deadlineBuddy", JSON.stringify(tasks));
+}
+
+function daysLeft(date) {
+  return Math.round(
+    (new Date(date+"T00:00:00") -
+     new Date(today()+"T00:00:00")) / 86400000
+  );
+}
+
+function render() {
+  const filter = $("filter").value;
+  const visible = tasks.filter(t =>
+    filter === "all" ||
+    (filter === "active" && !t.done) ||
+    (filter === "done" && t.done)
+  ).sort((a,b) => Number(a.done)-Number(b.done) ||
+                   a.date.localeCompare(b.date));
+
+  $("total").textContent = tasks.length;
+  $("completed").textContent = tasks.filter(t=>t.done).length;
+  $("soon").textContent = tasks.filter(t=>
+    !t.done && daysLeft(t.date)>=0 && daysLeft(t.date)<=2
+  ).length;
+
+  $("tasks").innerHTML = "";
+
+  if (!visible.length) {
+    $("tasks").innerHTML =
+      "<p style='color:#69738c'>No tasks here yet. Add one above! 🌱</p>";
+    return;
+  }
+
+  visible.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "task";
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = t.done;
+    check.setAttribute("aria-label","Mark task complete");
+    check.onchange = () => {
+      t.done = check.checked;
+      save();
+      render();
+    };
+
+    const details = document.createElement("div");
+    details.className = "details" + (t.done ? " done" : "");
+
+    const name = document.createElement("strong");
+    name.textContent = t.title;
+
+    const meta = document.createElement("small");
+    const days = daysLeft(t.date);
+    let due = "Due " + t.date;
+    if (!t.done && days < 0) due = "Overdue";
+    else if (!t.done && days === 0) due = "Due today";
+    else if (!t.done && days === 1) due = "Due tomorrow";
+
+    meta.textContent = t.category + " · " + due;
+    details.append(name,meta);
+
+    const del = document.createElement("button");
+    del.className = "delete";
+    del.textContent = "×";
+    del.setAttribute("aria-label","Delete task");
+    del.onclick = () => {
+      tasks = tasks.filter(item => item.id !== t.id);
+      save();
+      render();
+    };
+
+    row.append(check,details,del);
+    $("tasks").append(row);
+  });
+}
+
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+
+  tasks.push({
+    id: Date.now().toString() + Math.random(),
+    title: $("title").value.trim(),
+    category: $("category").value,
+    date: $("date").value,
+    done: false
+  });
+
+  save();
+  $("form").reset();
+  $("date").value = today();
+  render();
+});
+
+$("filter").addEventListener("change",render);
+render();
+</script>
+</body>
+</html>
